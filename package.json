@@ -1,0 +1,25 @@
+{
+  "name": "genz-mobile",
+  "version": "7.10.0",
+  "description": "GenZ Android app — a Capacitor wrapper around the live GenZ web app (publictalk.in). No app logic lives here; it's built by GitHub Actions into an installable APK.",
+  "private": true,
+  "scripts": {
+    "sync": "cap sync android",
+    "build:debug": "cap sync android && cd android && ./gradlew assembleDebug",
+    "open:android": "cap open android"
+  },
+  "keywords": [
+    "genz",
+    "capacitor",
+    "android"
+  ],
+  "author": "",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@capacitor/android": "^6.2.2",
+    "@capacitor/core": "^6.2.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.2.2"
+  }
+}

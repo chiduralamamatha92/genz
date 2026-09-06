@@ -1,0 +1,16 @@
+{
+  "appId": "in.publictalk.genz",
+  "appName": "GenZ",
+  "webDir": "www",
+  "server": {
+    "url": "https://publictalk.in",
+    "androidScheme": "https",
+    "allowNavigation": [
+      "publictalk.in",
+      "*.publictalk.in"
+    ]
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}

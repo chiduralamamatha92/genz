@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">GenZ</string>
+    <string name="title_activity_main">GenZ</string>
+    <string name="package_name">in.publictalk.genz</string>
+    <string name="custom_url_scheme">in.publictalk.genz</string>
+</resources>
