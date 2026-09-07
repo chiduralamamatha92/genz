@@ -46,6 +46,12 @@
     <uses-permission android:name="android.permission.BLUETOOTH" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Needed for the Nearby feature (navigator.geolocation in the web app).
+         Without these, Android's WebView silently denies every geolocation
+         request no matter what the in-page prompt shows — see the
+         onGeolocationPermissionsShowPrompt override in MainActivity.java. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />

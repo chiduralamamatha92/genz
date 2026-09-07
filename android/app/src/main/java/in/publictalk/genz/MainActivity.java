@@ -3,6 +3,7 @@ package in.publictalk.genz;
 import android.Manifest;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.webkit.GeolocationPermissions;
 import android.webkit.PermissionRequest;
 import androidx.core.app.ActivityCompat;
 import com.getcapacitor.BridgeActivity;
@@ -21,6 +22,15 @@ import com.getcapacitor.BridgeWebChromeClient;
  * runtime permissions below. This does not touch backend/api/calls/* or any
  * calling JS — it only makes the browser API those already rely on
  * (getUserMedia) actually available inside the app's WebView.
+ *
+ * v7.16: same pattern extended to navigator.geolocation, for the Nearby
+ * feature. A bare Android WebView auto-denies every geolocation request
+ * with no visible prompt at all unless the host Activity explicitly
+ * implements onGeolocationPermissionsShowPrompt — that's why Nearby worked
+ * in a real mobile browser (Safari/Chrome) but failed inside the installed
+ * APK specifically. Same two-part fix as camera/mic: request the real OS
+ * runtime permission up front, then auto-grant the WebView's own prompt
+ * once that OS permission is held.
  */
 public class MainActivity extends BridgeActivity {
 
@@ -30,11 +40,14 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Ask for camera/mic up front so the in-call getUserMedia prompt
-        // (auto-granted below) has real OS-level permission to hand out.
+        // Ask for camera/mic/location up front so the in-call getUserMedia
+        // prompt and the Nearby geolocation prompt (both auto-granted below)
+        // have real OS-level permission to hand out.
         String[] neededPermissions = {
             Manifest.permission.CAMERA,
-            Manifest.permission.RECORD_AUDIO
+            Manifest.permission.RECORD_AUDIO,
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION
         };
         java.util.List<String> toRequest = new java.util.ArrayList<>();
         for (String p : neededPermissions) {
@@ -55,6 +68,17 @@ public class MainActivity extends BridgeActivity {
             @Override
             public void onPermissionRequest(final PermissionRequest request) {
                 runOnUiThread(() -> request.grant(request.getResources()));
+            }
+
+            // Same idea as onPermissionRequest above, for navigator.geolocation
+            // instead of getUserMedia. If the OS-level runtime permission
+            // above hasn't actually been granted by the user yet, Android's
+            // location stack itself will still fail the fix at the source —
+            // this only unblocks the WebView-level prompt, it doesn't bypass
+            // the real permission.
+            @Override
+            public void onGeolocationPermissionsShowPrompt(String origin, GeolocationPermissions.Callback callback) {
+                callback.invoke(origin, true, false);
             }
         });
     }
