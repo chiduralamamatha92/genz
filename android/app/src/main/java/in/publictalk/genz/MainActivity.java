@@ -121,7 +121,7 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
-    protected void onResume() {
+    public void onResume() {
         super.onResume();
         if (pendingCallAction != null) {
             deliverAttempts = 0;

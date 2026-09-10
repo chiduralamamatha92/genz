@@ -1,6 +1,6 @@
 {
   "name": "genz-mobile",
-  "version": "7.43.0",
+  "version": "7.43.1",
   "description": "GenZ Android app — a Capacitor wrapper around the live GenZ web app (publictalk.in). No app logic lives here; it's built by GitHub Actions into an installable APK.",
   "private": true,
   "scripts": {

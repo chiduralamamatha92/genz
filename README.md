@@ -24,6 +24,17 @@ Nothing about the WebRTC signaling/calling backend (`backend/api/calls/*`)
 or its JS is part of this repo at all — it's untouched, on the server, same
 as always.
 
+## v7.43.1 — fixes a build error from v7.43
+
+The first v7.43 push failed to compile with:
+`onResume() in MainActivity cannot override onResume() in BridgeActivity — attempting to assign weaker access privileges; was public`
+
+Cause: `MainActivity.onResume()` (added below, for the native call-listener
+work) was declared `protected`, but Capacitor's `BridgeActivity` already
+declares `onResume()` as `public` — Java doesn't allow an override to
+narrow a method's visibility. Fixed by making it `public` too, matching
+the class it overrides. Nothing else changed from v7.43.
+
 ## v7.43 — calls ringing while the screen is locked
 
 **The problem:** this app is a plain WebView wrapper, not Chrome. Android
