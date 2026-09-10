@@ -33,6 +33,25 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
+
+        <!-- v7.43: "when locked screen not coming" — see CallPollService's
+             docblock. A separate native background service (not the
+             WebView/app.js) that keeps polling for incoming calls and can
+             post a real Android notification even when the screen is
+             locked, since the WebView's own JS gets frozen in that state.
+             foregroundServiceType="dataSync" is the closest standard fit
+             for "periodically fetches data in the background"; it does not
+             restrict what kind of notification the service is allowed to
+             post (that's governed by the notification's own channel/
+             priority/full-screen-intent, set in code). -->
+        <service
+            android:name=".CallPollService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false" />
+
+        <receiver
+            android:name=".CallActionReceiver"
+            android:exported="false" />
     </application>
 
     <!-- Permissions -->
@@ -52,6 +71,16 @@
          onGeolocationPermissionsShowPrompt override in MainActivity.java. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!-- v7.43: for CallPollService, the native "screen off ringing" fallback —
+         see its docblock in CallPollService.java. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Lets the incoming-call notification wake/show over a locked screen.
+         On Android 14+ this may still need one manual toggle from the user:
+         Settings → Apps → GenZ → Notifications → "Full screen notifications". -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
 
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />

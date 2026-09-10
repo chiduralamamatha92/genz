@@ -24,6 +24,48 @@ Nothing about the WebRTC signaling/calling backend (`backend/api/calls/*`)
 or its JS is part of this repo at all — it's untouched, on the server, same
 as always.
 
+## v7.43 — calls ringing while the screen is locked
+
+**The problem:** this app is a plain WebView wrapper, not Chrome. Android
+freezes a WebView's JavaScript — every timer, every network request —
+once the screen locks or the app sits in the background a while, same as
+it freezes a background browser tab. That means the website's own call
+polling (`startGlobalCallListener()` in app.js) simply stops running the
+instant the phone locks, no matter how fast it's tuned — this is an
+Android platform behavior, not a bug in that polling logic.
+
+**The real fix** is Firebase Cloud Messaging (native push) — that needs a
+free Firebase project and two credential files shared into the build.
+Not set up yet on this project.
+
+**What v7.43 does instead, with zero external setup required:** three new
+files — `CallPollService.java`, `CallActionReceiver.java`,
+`CallListenerPlugin.java` — add a genuinely separate native Android
+background service that polls `backend/api/calls/poll.php` itself,
+completely outside the WebView, so Android's freezing rules don't apply
+to it. The moment it sees an incoming call it posts a real Android
+notification with a full-screen intent (the same mechanism real calling
+apps use to wake a locked screen) with Answer/Decline buttons right on
+it — same idea as the web/PWA side's push notification actions (see the
+main GenZ repo's v7.42 changelog). `app.js` starts/stops this service via
+`CallListenerPlugin` right after login/logout (see `syncNativeCallListener()`
+in app.js) — nothing about this touches `backend/api/calls/*` on the
+server, it only calls the same public endpoints the website already uses.
+
+**Honest trade-off:** this keeps a low-priority "GenZ — Listening for
+calls" notification visible at all times while logged in (Android
+requires this for any background service to be allowed to keep running
+at all) and polls every ~3 seconds, so it uses somewhat more battery than
+real push would. That's the real cost of not having FCM wired up yet — if
+battery drain becomes a real complaint, Firebase is the next step up from
+here.
+
+**One manual step some users may need:** on Android 14+, a fresh install
+may need "Full screen notifications" turned on by hand for GenZ once:
+Settings → Apps → GenZ → Notifications → Full screen notifications → On.
+Without FCM there's no way to prompt for this automatically the way a
+Play-Store-reviewed calling app can.
+
 ## Getting the APK
 
 Every push to `main` (and manual runs from the **Actions** tab) builds a
@@ -85,4 +127,4 @@ what and where.
   (or run `npx capacitor-assets generate` with a 1024×1024 source icon).
 - Version shown in the Play Store: `android/app/build.gradle` →
   `versionCode` (integer, must increase every release) and `versionName`
-  (currently kept in sync with the GenZ web app's own version, `7.10`).
+  (currently kept in sync with the GenZ web app's own version, `7.43`).
