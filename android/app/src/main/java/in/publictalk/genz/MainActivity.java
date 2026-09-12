@@ -1,6 +1,8 @@
 package in.publictalk.genz;
 
 import android.Manifest;
+import android.app.NotificationManager;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
@@ -123,6 +125,22 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onResume() {
         super.onResume();
+        // v7.60: "popup card ala vunte, accept nokkina taruvata kuda alage
+        // vuntundi" — capturePendingCallAction() already cancels the native
+        // call notification the instant its Answer/tap intent is captured,
+        // but some OEM notification stacks (MIUI/Xiaomi in particular, per
+        // this project's own earlier notes) have proven inconsistent about
+        // honoring that immediately. Any time this Activity becomes visible
+        // again, the native lock-screen notification is redundant anyway —
+        // either the user just answered/declined it (already handled below/
+        // in CallActionReceiver), or the app is now in the foreground and
+        // its OWN in-app ringing screen (pollForCalls in app.js) is what the
+        // user sees and acts on instead. cancel() is a harmless no-op when
+        // nothing is posted, so calling it unconditionally here closes the
+        // gap for good, independent of whether the intent-time cancel above
+        // was honored by this specific device.
+        NotificationManager nmResume = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        if (nmResume != null) nmResume.cancel(CallPollService.CALL_NOTIF_ID);
         if (pendingCallAction != null) {
             deliverAttempts = 0;
             tryDeliverPendingCallAction();
@@ -136,13 +154,34 @@ public class MainActivity extends BridgeActivity {
         if (action != null && callId != null) {
             pendingCallAction = action;
             pendingCallActionId = callId;
+            // v7.50: "notification click cheste answer cheyatledu ... call
+            // end aiyyaka kuda notification alage vuntundi" — clear the
+            // native call notification the instant the user acts on it
+            // (tapping the notification body or its Answer button both
+            // land here), the same way CallActionReceiver's Decline button
+            // already does. CallPollService's own setAutoCancel(true) is
+            // supposed to cover this too, but combined with setOngoing(true)
+            // that combination is inconsistent across OEM notification
+            // implementations (MIUI in particular) — cancelling explicitly
+            // here removes any dependence on that.
+            NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm != null) nm.cancel(CallPollService.CALL_NOTIF_ID);
         }
     }
 
-    // Retries for ~6s (15 tries, 400ms apart) since app.js may still be
-    // cold-starting (fresh network load of the whole SPA) when this fires —
-    // gives up silently past that; the app still opens normally either way,
-    // the user just answers manually from the ringing screen instead.
+    // v7.50: widened from 15 tries/400ms (~6s) to 30 tries/500ms (~15s).
+    // The old budget assumed the WebView was merely paused/resumed, but a
+    // tap on this notification can just as easily relaunch the whole
+    // Activity from scratch (Android/MIUI killed the backgrounded app
+    // process to reclaim memory, which this project has hit before) —
+    // that means re-fetching and booting the entire SPA from
+    // https://publictalk.in over whatever network the phone has, which can
+    // easily take longer than 6s. This is purely a "how long to wait
+    // before giving up silently" budget (the app still opens normally
+    // either way, worst case the user answers manually from the ringing
+    // screen) and stays well inside the 45s a call actually keeps ringing
+    // for, so widening it costs nothing in the already-fast warm case and
+    // only helps the slow cold-start case.
     private void tryDeliverPendingCallAction() {
         if (pendingCallAction == null || pendingCallActionId == null || this.bridge == null || this.bridge.getWebView() == null) return;
         final String action = pendingCallAction;
@@ -155,9 +194,9 @@ public class MainActivity extends BridgeActivity {
                     bridge.getWebView().evaluateJavascript(js, null);
                     pendingCallAction = null;
                     pendingCallActionId = null;
-                } else if (deliverAttempts < 15) {
+                } else if (deliverAttempts < 30) {
                     deliverAttempts++;
-                    uiHandler.postDelayed(this::tryDeliverPendingCallAction, 400);
+                    uiHandler.postDelayed(this::tryDeliverPendingCallAction, 500);
                 }
             }
         );

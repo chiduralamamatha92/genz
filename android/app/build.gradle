@@ -7,8 +7,8 @@ android {
         applicationId "in.publictalk.genz"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 744
-        versionName "7.43.1"
+        versionCode 748
+        versionName "7.62"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -62,6 +62,13 @@ dependencies {
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
+
+    // v7.62, Part B (FCM): FcmService.java + CallListenerPlugin.java's
+    // token registration. BOM pins compatible versions across all
+    // Firebase artifacts; only firebase-messaging itself is actually
+    // used (no Analytics/Crashlytics/etc. added).
+    implementation platform('com.google.firebase:firebase-bom:33.1.2')
+    implementation 'com.google.firebase:firebase-messaging'
 }
 
 apply from: 'capacitor.build.gradle'

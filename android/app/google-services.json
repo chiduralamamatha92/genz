@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "28368886491",
+    "project_id": "genz-78516",
+    "storage_bucket": "genz-78516.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:28368886491:android:c3cd2972a0d70e37614afe",
+        "android_client_info": {
+          "package_name": "in.publictalk.genz"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBBkmtLz5NkLnNaAD2GtN3aGczLGbGeDz8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

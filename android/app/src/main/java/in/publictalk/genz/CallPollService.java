@@ -72,12 +72,20 @@ public class CallPollService extends Service {
     private volatile boolean running = false;
     private String lastNotifiedCallId = null;
 
+    // v7.62, Part B (FCM): lets FcmService "poke" whichever instance of
+    // this service is currently alive, so an incoming FCM data push can
+    // make it poll RIGHT NOW instead of waiting for its next scheduled
+    // tick — see pokeNow() below. Purely additive to the v7.43 polling
+    // loop; nothing here changes how or what it polls.
+    private static volatile CallPollService activeInstance;
+
     @Override
     public void onCreate() {
         super.onCreate();
         thread = new HandlerThread("GenZCallPoll");
         thread.start();
         bgHandler = new Handler(thread.getLooper());
+        activeInstance = this;
     }
 
     @Override
@@ -129,6 +137,28 @@ public class CallPollService extends Service {
             }
             JSONObject json = new JSONObject(sb.toString());
             if (json.isNull("incoming")) {
+                // v7.43.2: the call stopped ringing (answered on some
+                // device, declined, or timed out) — the notification we
+                // posted for it needs to be cleared too, otherwise it just
+                // sits there forever (this was the "still showing after
+                // call lift" bug).
+                // v7.50: "call end aiyyaka kuda notification alage vuntundi"
+                // — this was STILL happening because the cancel above was
+                // gated behind lastNotifiedCallId != null, which is only
+                // true in THIS SAME service instance's memory. If Android
+                // (MIUI/OEM battery management especially) kills and then
+                // restarts this foreground service (it's START_STICKY) at
+                // any point between posting the notification and the call
+                // ending, the fresh instance's lastNotifiedCallId resets to
+                // null — so the very first poll after restart sees
+                // incoming:null (call already over) but skipped the cancel,
+                // permanently orphaning an ONGOING (non-swipeable)
+                // notification. nm.cancel() is a harmless no-op when
+                // there's nothing posted, so just always call it here —
+                // removes the possibility of a stuck notification
+                // regardless of whether this instance remembers posting it.
+                NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                nm.cancel(CALL_NOTIF_ID);
                 lastNotifiedCallId = null; // clear so a genuinely new call always notifies again
                 return;
             }
@@ -169,10 +199,25 @@ public class CallPollService extends Service {
                 .setSmallIcon(R.mipmap.ic_launcher)
                 .setContentTitle(title)
                 .setContentText(callerName + " is calling…")
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                // v7.43.2: "call chestunte locked lo ravadam ledu, unlock
+                // chesinappude vastundi" — the notification WAS posting
+                // (it showed up fine once unlocked/pulled down), just never
+                // actually waking/appearing over the lock screen itself.
+                // Two real gaps here: PRIORITY_HIGH is the ceiling for a
+                // notification CHANNEL, but the individual notification's
+                // own priority can still go to PRIORITY_MAX — pre-Oreo
+                // devices (and some OEM skins) key the full-screen-intent
+                // behavior off this rather than the channel; and with no
+                // explicit visibility set, a locked-screen privacy setting
+                // can suppress the heads-up/full-screen behavior entirely
+                // even though the notification itself still exists.
+                // VISIBILITY_PUBLIC is what a real incoming-call UI needs.
+                .setPriority(NotificationCompat.PRIORITY_MAX)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setCategory(NotificationCompat.CATEGORY_CALL)
                 .setFullScreenIntent(answerPi, true)
                 .setContentIntent(answerPi)
+                .setOngoing(true)
                 .addAction(0, "Answer", answerPi)
                 .addAction(0, "Decline", declinePi)
                 .setAutoCancel(true)
@@ -211,9 +256,28 @@ public class CallPollService extends Service {
         }
     }
 
+    /**
+     * v7.62, Part B (FCM): called by FcmService.onMessageReceived() the
+     * instant a high-priority "check for a call now" data push arrives,
+     * so the popup appears immediately instead of after up to
+     * POLL_INTERVAL_MS of waiting. Purely a reschedule of the SAME
+     * pollLoop that already runs every 3s — no new poll logic, no new
+     * notification logic. A harmless no-op if this service isn't running
+     * (activeInstance null) — FcmService always also calls
+     * startForegroundService() first, which covers that case by starting
+     * the normal loop right away on its own.
+     */
+    static void pokeNow() {
+        CallPollService svc = activeInstance;
+        if (svc == null || svc.bgHandler == null) return;
+        svc.bgHandler.removeCallbacks(svc.pollLoop);
+        svc.bgHandler.post(svc.pollLoop);
+    }
+
     @Override
     public void onDestroy() {
         running = false;
+        if (activeInstance == this) activeInstance = null;
         if (bgHandler != null) bgHandler.removeCallbacksAndMessages(null);
         if (thread != null) thread.quitSafely();
         super.onDestroy();
