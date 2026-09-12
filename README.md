@@ -24,6 +24,54 @@ Nothing about the WebRTC signaling/calling backend (`backend/api/calls/*`)
 or its JS is part of this repo at all — it's untouched, on the server, same
 as always.
 
+## v7.64 — the native call screen no longer fights the in-app one
+
+Live test of v7.63 turned up a real regression: the new full-screen
+`IncomingCallActivity` was appearing even while the app was ALREADY open
+(it should only ever take over when the app is closed/backgrounded/
+locked), and tapping Accept on it then showed "Call ended."
+
+**Root cause:** before v7.63, the notification's full-screen intent
+pointed straight at `MainActivity` — if the app was already open that was
+a harmless silent no-op (same Activity, nothing new drawn). v7.63 made it
+launch a genuinely SEPARATE screen instead (necessary for the locked/
+backgrounded case), but `CallPollService`'s poll loop never checked
+whether the app was already in the foreground before doing that — so it
+started stacking that second screen on top of the app's own in-app
+ringing UI (already shown independently by app.js's own poll) every
+single time. With two screens now both able to trigger "answer," whichever
+one the user tapped second hit `calls/accept.php` after the first had
+already succeeded, which reads back as "no longer available" → "Call
+ended" — exactly the reported symptom.
+
+**The fix:** `MainActivity` now tracks its own foreground state
+(`isForeground`, set in `onResume()`/`onPause()`). `CallPollService`
+skips showing the native full-screen call UI entirely while the app is in
+the foreground — the in-app ringing screen is the ONLY one shown in that
+case, exactly the design this project always intended (see the existing
+v7.60 comment in `onResume()`, written before `IncomingCallActivity` even
+existed). If the app is later backgrounded while the same call is still
+ringing, the very next poll tick (≤3s) is free to show the real native
+screen then. And if the user brings the app to the foreground themselves
+(e.g. just unlocking the phone) while the native screen happens to already
+be showing, `MainActivity.onResume()` now cleanly dismisses it via the new
+`IncomingCallActivity.finishIfShowing()`, instead of leaving two call UIs
+stacked on top of each other.
+
+**What changed:** `MainActivity.java` (new `isForeground` flag + new
+`onPause()`), `IncomingCallActivity.java` (new `activeInstance` tracking +
+`finishIfShowing()`), `CallPollService.java` (one new foreground check
+before showing the notification — no change to polling/timing/fraud
+logic). `versionCode` 749→750, `versionName` "7.63"→"7.64".
+
+Verified: all 6 Java files brace-balanced, all XML well-formed.
+**Known limitation, stated plainly**: no Android build environment here —
+needs the usual GitHub Actions rebuild, then a real test: call while the
+app is open (should show only the in-app ringing screen, no native
+popup), then call while the app is closed/locked (should show the native
+full-screen screen as before), and confirm Accept works cleanly in both
+cases with no "Call ended" error.
+
 ## v7.63 — the actual WhatsApp/Telegram-style full-screen incoming-call UI
 
 Live testing of v7.62's FCM wiring turned up the real remaining gap:

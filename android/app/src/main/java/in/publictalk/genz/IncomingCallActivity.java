@@ -68,9 +68,15 @@ public class IncomingCallActivity extends AppCompatActivity {
     private String callId;
     private boolean resolved = false; // true once Accept/Decline/timeout/self-poll has acted, guards against double-firing
 
+    // v7.64: lets MainActivity.onResume() hand off cleanly if the user
+    // brings the app to the foreground themselves (e.g. just unlocking the
+    // phone) while this screen is still showing — see finishIfShowing().
+    private static volatile IncomingCallActivity activeInstance;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        activeInstance = this;
 
         // The actual fix: make this Activity able to draw over the lock
         // screen and wake the display, the same capability every real
@@ -190,6 +196,25 @@ public class IncomingCallActivity extends AppCompatActivity {
         finish();
     }
 
+    /**
+     * v7.64: called from MainActivity.onResume() — if the user brought the
+     * app itself to the foreground (unlocked the phone, switched back to
+     * it) while this screen happened to already be showing, just quietly
+     * dismiss it (no MainActivity relaunch — it's already in front) and
+     * let the app's own in-app ringing screen take over, instead of
+     * leaving two competing call UIs on screen. Does NOT decline the
+     * call — app.js's own poller already knows about it independently and
+     * shows its own accept/decline UI.
+     */
+    static void finishIfShowing() {
+        IncomingCallActivity a = activeInstance;
+        if (a != null && !a.resolved && !a.isFinishing()) {
+            a.resolved = true;
+            a.clearNotification();
+            a.finish();
+        }
+    }
+
     private void accept() {
         if (resolved) return;
         resolved = true;
@@ -247,6 +272,7 @@ public class IncomingCallActivity extends AppCompatActivity {
     protected void onDestroy() {
         resolved = true;
         uiHandler.removeCallbacksAndMessages(null);
+        if (activeInstance == this) activeInstance = null;
         super.onDestroy();
     }
 }

@@ -60,6 +60,16 @@ public class MainActivity extends BridgeActivity {
     private int deliverAttempts;
     private final Handler uiHandler = new Handler(Looper.getMainLooper());
 
+    // v7.64: "app open lo vunnapudu kuda [native popup] vastundi, accept
+    // cheste call ended ani vastundi" — see CallPollService's v7.64 comment
+    // for the full root cause. This flag is how CallPollService knows
+    // whether it's safe to skip the intrusive native full-screen call UI
+    // (IncomingCallActivity) because the app's OWN in-app ringing screen
+    // is already what the user is looking at — exactly the design this
+    // project always intended (see the v7.60 comment in onResume() below,
+    // written before IncomingCallActivity even existed).
+    static volatile boolean isForeground = false;
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         // Capacitor plugins must be registered before super.onCreate().
@@ -145,6 +155,25 @@ public class MainActivity extends BridgeActivity {
             deliverAttempts = 0;
             tryDeliverPendingCallAction();
         }
+
+        // v7.64: the app is visible again — CallPollService should stop
+        // treating any ringing call as "needs the native full-screen UI"
+        // from this point on (see its isForeground check), and if that
+        // screen is already showing (e.g. the user unlocked the phone
+        // themselves instead of tapping Accept on it), hand off to the
+        // app's own in-app ringing screen instead of leaving two call UIs
+        // stacked on top of each other.
+        isForeground = true;
+        IncomingCallActivity.finishIfShowing();
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        // v7.64: app no longer visible — from here CallPollService is free
+        // to show the real native full-screen call UI again for any NEW
+        // incoming call (see the corresponding check in its pollOnce()).
+        isForeground = false;
     }
 
     private void capturePendingCallAction(Intent intent) {

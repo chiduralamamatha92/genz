@@ -166,6 +166,31 @@ public class CallPollService extends Service {
             String callId = String.valueOf(incoming.getLong("id"));
             if (callId.equals(lastNotifiedCallId)) return; // already showing this exact call
 
+            // v7.64: "app open lo vunnapudu kuda [native popup] vastundi,
+            // accept cheste call ended ani vastundi" — root cause. Before
+            // v7.63, this notification's full-screen intent pointed
+            // straight at MainActivity itself, so if the app was already
+            // open it was a harmless silent no-op (same Activity, nothing
+            // new drawn). v7.63 made it launch a SEPARATE screen
+            // (IncomingCallActivity) instead — genuinely necessary for the
+            // locked/backgrounded case, but this poll loop never checked
+            // whether the app was ALREADY open before doing that, so it
+            // started stacking that second screen on top of the app's own
+            // in-app ringing UI (already showing, from app.js's own
+            // independent poll) every time. Worse: with two screens now
+            // both able to trigger an "answer," whichever one the user
+            // acted on second hit calls/accept.php after the first had
+            // already succeeded, which reads back as "no longer
+            // available" → "Call ended" — the exact symptom reported.
+            // Fix: while the app is genuinely in the foreground, skip the
+            // native screen ENTIRELY and let the in-app UI be the only one
+            // — exactly the design this project already intended (see the
+            // v7.60 comment in MainActivity.onResume()). lastNotifiedCallId
+            // is deliberately NOT set here, so if the app gets backgrounded
+            // while this same call is still ringing, the very next poll
+            // tick (≤3s later) is free to show the real notification then.
+            if (MainActivity.isForeground) return;
+
             String callerName = incoming.optString("display_name", "");
             if (callerName.isEmpty() || "null".equals(callerName)) {
                 callerName = incoming.optString("username", "Someone");
