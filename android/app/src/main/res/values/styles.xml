@@ -19,4 +19,14 @@
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
     </style>
+
+    <!-- v7.63: IncomingCallActivity's theme — no action bar, dark
+         background so there's no white flash before activity_incoming_call's
+         own background draws, matching a real calling app's full-screen UI. -->
+    <style name="AppTheme.IncomingCall" parent="Theme.AppCompat.NoActionBar">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+        <item name="android:windowBackground">#121214</item>
+        <item name="android:windowIsTranslucent">false</item>
+    </style>
 </resources>

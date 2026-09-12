@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v7.63: the big red Decline circle on the native full-screen
+     incoming-call UI (see IncomingCallActivity.java). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
+    <solid android:color="#FF3B30" />
+</shape>

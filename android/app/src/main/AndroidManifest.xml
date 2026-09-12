@@ -53,6 +53,26 @@
             android:name=".CallActionReceiver"
             android:exported="false" />
 
+        <!-- v7.63: "whatsapp/telegram calling laga kavali" — see
+             IncomingCallActivity.java's docblock for the full story. The
+             showWhenLocked/turnScreenOn attributes here are the manifest-
+             level half of letting this screen actually appear over the
+             lock screen (paired with the runtime setShowWhenLocked()/
+             setTurnScreenOn() calls in the Activity itself, for API<27
+             devices and as a belt-and-braces fallback); excludeFromRecents
+             keeps a dismissed/answered call screen from lingering in the
+             recent-apps list. singleTask so a second incoming call while
+             this is already showing updates the same instance rather than
+             stacking a duplicate. -->
+        <activity
+            android:name=".IncomingCallActivity"
+            android:theme="@style/AppTheme.IncomingCall"
+            android:launchMode="singleTask"
+            android:excludeFromRecents="true"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:exported="false" />
+
         <!-- v7.62, Part B (FCM): see FcmService.java's docblock. Purely a
              fast "wake up and poll now" nudge to the existing
              CallPollService above — does not show its own notification

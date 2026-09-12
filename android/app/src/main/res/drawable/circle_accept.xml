@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v7.63: "whatsapp/telegram laga call screen kavali" — the big green
+     Accept circle on the native full-screen incoming-call UI (see
+     IncomingCallActivity.java). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
+    <solid android:color="#25D366" />
+</shape>

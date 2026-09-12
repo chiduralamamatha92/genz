@@ -24,6 +24,65 @@ Nothing about the WebRTC signaling/calling backend (`backend/api/calls/*`)
 or its JS is part of this repo at all — it's untouched, on the server, same
 as always.
 
+## v7.63 — the actual WhatsApp/Telegram-style full-screen incoming-call UI
+
+Live testing of v7.62's FCM wiring turned up the real remaining gap:
+sound/vibration reached a locked phone fine, but no ringing screen ever
+appeared over the lock screen — and tapping "Answer" on the notification
+did nothing (only answering from inside the already-open app worked).
+
+**Root cause:** every notification action (full-screen intent, tapping
+the notification body, the "Answer" button) launched `MainActivity` — the
+WebView app itself — directly with an instruction to auto-answer.
+`MainActivity` has never asked Android for permission to draw over the
+lock screen or turn the display on, so while the phone was locked that
+launch just queued behind the keyguard. The user only ever got the
+notification's sound; the "screen" never showed.
+
+**The fix:** a new, separate, 100% native `IncomingCallActivity` — the
+one piece actually missing this whole time. It requests
+`setShowWhenLocked(true)` + `setTurnScreenOn(true)` (API 27+; the older
+window-flag equivalents below that) and `requestDismissKeyguard()`, so it
+genuinely appears full-screen over a locked phone and wakes the display,
+the same capability every real calling app's incoming-call screen uses.
+It shows the caller's name, call type, and real Accept (green) / Decline
+(red) buttons — Accept launches `MainActivity` with the same answer
+instruction as before (now that the screen is genuinely visible), reusing
+the existing, already-working `calls/accept.php` + WebRTC setup in app.js
+completely untouched; Decline posts straight to `calls/decline.php`,
+mirroring `CallActionReceiver` exactly. It also self-polls the same
+`calls/poll.php` endpoint every 3s (auto-dismissing itself if the call was
+answered/declined elsewhere or ended) and has a hard 45s cap matching the
+caller's own ring timeout, so it can never get stuck on screen.
+
+**What changed:**
+
+- New file `IncomingCallActivity.java` + `res/layout/activity_incoming_call.xml`
+  + 3 small circle drawables + a new `AppTheme.IncomingCall` style.
+- `CallPollService.showIncomingCallNotification()` — the full-screen
+  intent, content-tap, and "Answer" action now all target
+  `IncomingCallActivity` instead of `MainActivity` directly ("Answer" adds
+  an `auto_answer` extra so it still answers immediately with no extra
+  tap, just via a screen that can actually show over the lock screen
+  first). "Decline" is unchanged (`CallActionReceiver`, already working).
+  No change to the actual polling/timing/fraud logic in that file.
+- `AndroidManifest.xml` — registered `IncomingCallActivity` with
+  `showWhenLocked`/`turnScreenOn` attributes and `excludeFromRecents`.
+- `versionCode` 748→749, `versionName` "7.62"→"7.63".
+- Verified: all 6 Java files brace-balanced, all new/changed XML
+  well-formed, every `R.id`/`R.layout` reference in the new Activity
+  double-checked against the new layout file. `backend/api/calls/*` is
+  untouched — this only changes which native screen the notification
+  points to, and that screen calls the exact same two existing endpoints
+  (`accept.php`/`decline.php`) app.js and `CallActionReceiver` already
+  call.
+- **Known limitation, stated plainly**: no Android build environment here
+  to actually run this on a device — needs the usual GitHub Actions
+  rebuild, then a real locked-phone test: have someone call while the
+  phone is locked, confirm the ringing screen actually appears (not just
+  sound), and confirm both Accept (from that screen, and from the
+  notification's own Answer button) and Decline work.
+
 ## v7.62 — FCM wired in (Part B), Android half
 
 Step 3 of the 3-part plan (popup bug → TURN relay → FCM). This is the

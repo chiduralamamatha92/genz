@@ -181,11 +181,35 @@ public class CallPollService extends Service {
     private void showIncomingCallNotification(String callId, String callerName, String callType) {
         ensureChannels();
 
-        Intent answerIntent = new Intent(this, MainActivity.class);
-        answerIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        answerIntent.putExtra(MainActivity.EXTRA_CALL_ACTION, "answer");
-        answerIntent.putExtra(MainActivity.EXTRA_CALL_ID, callId);
-        PendingIntent answerPi = PendingIntent.getActivity(this, callId.hashCode(), answerIntent,
+        // v7.63: "whatsapp/telegram calling laga kavali" — this used to
+        // point straight at MainActivity (the WebView app) with an
+        // instruction to auto-answer. MainActivity never requested
+        // show-over-keyguard/turn-screen-on, so while the phone was
+        // locked that launch just queued behind the lock screen — the
+        // user only ever got the notification's sound, never an actual
+        // ringing screen. IncomingCallActivity is a small separate native
+        // screen that DOES request those flags (see its docblock) and
+        // shows a real Accept/Decline choice; only after Accept is it
+        // MainActivity that gets launched, same as before.
+        Intent ringIntent = new Intent(this, IncomingCallActivity.class);
+        ringIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        ringIntent.putExtra(MainActivity.EXTRA_CALL_ID, callId);
+        ringIntent.putExtra(IncomingCallActivity.EXTRA_CALLER_NAME, callerName);
+        ringIntent.putExtra(IncomingCallActivity.EXTRA_CALL_TYPE, callType);
+        PendingIntent ringPi = PendingIntent.getActivity(this, callId.hashCode(), ringIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+        // The notification's own small "Answer" action (only really
+        // reachable when unlocked/shade pulled down) — same target
+        // Activity, but tells it to skip the Accept/Decline choice and
+        // proceed exactly as if Accept had already been tapped.
+        Intent autoAnswerIntent = new Intent(this, IncomingCallActivity.class);
+        autoAnswerIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        autoAnswerIntent.putExtra(MainActivity.EXTRA_CALL_ID, callId);
+        autoAnswerIntent.putExtra(IncomingCallActivity.EXTRA_CALLER_NAME, callerName);
+        autoAnswerIntent.putExtra(IncomingCallActivity.EXTRA_CALL_TYPE, callType);
+        autoAnswerIntent.putExtra(IncomingCallActivity.EXTRA_AUTO_ANSWER, true);
+        PendingIntent autoAnswerPi = PendingIntent.getActivity(this, ("autoanswer" + callId).hashCode(), autoAnswerIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
         Intent declineIntent = new Intent(this, CallActionReceiver.class);
@@ -215,10 +239,10 @@ public class CallPollService extends Service {
                 .setPriority(NotificationCompat.PRIORITY_MAX)
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setCategory(NotificationCompat.CATEGORY_CALL)
-                .setFullScreenIntent(answerPi, true)
-                .setContentIntent(answerPi)
+                .setFullScreenIntent(ringPi, true)
+                .setContentIntent(ringPi)
                 .setOngoing(true)
-                .addAction(0, "Answer", answerPi)
+                .addAction(0, "Answer", autoAnswerPi)
                 .addAction(0, "Decline", declinePi)
                 .setAutoCancel(true)
                 .setVibrate(new long[]{0, 500, 250, 500, 250, 500});
